@@ -419,22 +419,34 @@ function tryParseJsonSequence(rawText) {
     return {};
   }
 
+  // First, try to parse as regular JSON (handles pretty-printed JSON)
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Not regular JSON, try other formats
+  }
+
   // Some clients can send JSON text sequences (RFC 7464) or newline-delimited JSON.
-  const seq = text
-    .split(/\r?\n|\u001e/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => (line.startsWith("data:") ? line.slice(5).trim() : line))
-    .filter(Boolean)
-    .filter((line) => line !== "[DONE]");
+  // Only split if it looks like SSE format (contains "data:" prefix)
+  if (text.includes("data:")) {
+    const seq = text
+      .split(/\r?\n|\u001e/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => (line.startsWith("data:") ? line.slice(5).trim() : line))
+      .filter(Boolean)
+      .filter((line) => line !== "[DONE]");
 
-  if (seq.length === 1) {
-    return JSON.parse(seq[0]);
-  }
-  if (seq.length > 1) {
-    return JSON.parse(seq[0]);
+    if (seq.length >= 1) {
+      try {
+        return JSON.parse(seq[0]);
+      } catch {
+        // Fall through
+      }
+    }
   }
 
+  // Last resort: try to parse anyway
   return JSON.parse(text);
 }
 
