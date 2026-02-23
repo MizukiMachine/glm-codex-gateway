@@ -10,7 +10,7 @@ LOG_FILE="${LOG_DIR}/glm-codex-gateway.log"
 
 mkdir -p "${LOG_DIR}"
 
-# Optional local env file for persistent settings.
+# Load local env file for persistent settings (includes OPENAI_BASE_URL, CODEX_MODEL, etc.)
 if [ -f "${GATEWAY_DIR}/.env" ]; then
   set -a
   # shellcheck disable=SC1091
@@ -19,13 +19,14 @@ if [ -f "${GATEWAY_DIR}/.env" ]; then
 fi
 
 if [ -z "${ZAI_API_KEY:-}" ] && [ -z "${Z_AI_API_KEY:-}" ]; then
-  echo "[cz] ZAI_API_KEY が未設定です。"
-  echo "[cz] 例: export ZAI_API_KEY='<your-zai-key>'"
-  echo "[cz] または ${GATEWAY_DIR}/.env に ZAI_API_KEY=... を記載してください。"
+  echo "[glm-codex-gateway] ZAI_API_KEY が未設定です。"
+  echo "[glm-codex-gateway] 例: export ZAI_API_KEY='<your-zai-key>'"
+  echo "[glm-codex-gateway] または ${GATEWAY_DIR}/.env に ZAI_API_KEY=... を記載してください。"
   exit 1
 fi
 
-export OPENAI_BASE_URL="http://${GATEWAY_HOST}:${GATEWAY_PORT}/v1"
+# Set defaults if not already set by .env
+export OPENAI_BASE_URL="${OPENAI_BASE_URL:-http://${GATEWAY_HOST}:${GATEWAY_PORT}/v1}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-dummy-openai-key-for-proxy}"
 export CODEX_MODEL="${CODEX_MODEL:-glm-5}"
 
@@ -41,8 +42,8 @@ if ! curl -fsS "${HEALTH_URL}" >/dev/null 2>&1; then
 fi
 
 if ! curl -fsS "${HEALTH_URL}" >/dev/null 2>&1; then
-  echo "[cz] ゲートウェイ起動に失敗しました: ${HEALTH_URL}"
-  echo "[cz] ログ: ${LOG_FILE}"
+  echo "[glm-codex-gateway] ゲートウェイ起動に失敗しました: ${HEALTH_URL}"
+  echo "[glm-codex-gateway] ログ: ${LOG_FILE}"
   tail -n 40 "${LOG_FILE}" 2>/dev/null || true
   exit 1
 fi
