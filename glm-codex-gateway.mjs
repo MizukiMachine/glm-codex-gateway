@@ -22,7 +22,15 @@ const REQUEST_TIMEOUT_MS = Number(process.env.GLM_CODEX_GATEWAY_TIMEOUT_MS || "1
 const MODEL_DEFAULT = (process.env.GLM_DEFAULT_MODEL || "glm-4.7").trim();
 const LOG_LEVEL = (process.env.GLM_CODEX_GATEWAY_LOG_LEVEL || "info").trim().toLowerCase();
 const RESPONSES_FALLBACK_MODE = (process.env.GLM_RESPONSES_FALLBACK_MODE || "auto").trim().toLowerCase();
+const RESPONSES_STREAM_FALLBACK_MODE = (process.env.GLM_RESPONSES_STREAM_FALLBACK_MODE || "sse")
+  .trim()
+  .toLowerCase();
 let ACTIVE_ZAI_BASE_URL = ZAI_BASE_URL;
+const DEFAULT_RESPONSES_USAGE = Object.freeze({
+  input_tokens: 0,
+  output_tokens: 0,
+  total_tokens: 0,
+});
 
 const DEFAULT_MODEL_MAP = {
   "gpt-5.3-codex": "glm-4.7",
@@ -448,7 +456,7 @@ function pickAssistantTextFromChatResponse(chatResponse) {
 
 function normalizeResponsesUsage(rawUsage) {
   if (!rawUsage || typeof rawUsage !== "object") {
-    return undefined;
+    return { ...DEFAULT_RESPONSES_USAGE };
   }
   const usage = rawUsage;
 
@@ -596,21 +604,13 @@ function writeSse(res, data) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-function splitTextForStreaming(text, chunkSize = 120) {
-  const out = [];
-  const normalized = String(text || "");
-  for (let i = 0; i < normalized.length; i += chunkSize) {
-    out.push(normalized.slice(i, i + chunkSize));
-  }
-  return out.length > 0 ? out : [""];
-}
-
 function sendResponsesSseFromObject(res, responseObject, extraHeaders) {
   const responseId = String(responseObject?.id || `resp_${randomUUID().replace(/-/g, "")}`);
   const createdAt = String(responseObject?.created_at || new Date().toISOString());
   const model = String(responseObject?.model || MODEL_DEFAULT);
   const outputText = String(responseObject?.output_text || "");
   const messageId = String(responseObject?.output?.[0]?.id || `msg_${randomUUID().replace(/-/g, "")}`);
+  const usage = normalizeResponsesUsage(responseObject?.usage);
 
   const responseInProgress = {
     id: responseId,
@@ -619,16 +619,37 @@ function sendResponsesSseFromObject(res, responseObject, extraHeaders) {
     status: "in_progress",
     model,
     output: [],
+    usage,
+  };
+
+  // Build the final completed output item with proper structure
+  const completedOutputItem = {
+    type: "message",
+    id: messageId,
+    status: "completed",
+    role: "assistant",
+    content: [
+      {
+        type: "output_text",
+        text: outputText,
+        annotations: [],
+      },
+    ],
   };
 
   const responseCompleted = {
-    ...responseObject,
     id: responseId,
     object: "response",
     created_at: createdAt,
     status: "completed",
     model,
+    output: [completedOutputItem],
     output_text: outputText,
+    usage: {
+      input_tokens: usage.input_tokens,
+      output_tokens: usage.output_tokens,
+      total_tokens: usage.total_tokens,
+    },
   };
 
   res.writeHead(200, {
@@ -661,14 +682,17 @@ function sendResponsesSseFromObject(res, responseObject, extraHeaders) {
     part: { type: "output_text", text: "" },
   });
 
-  for (const delta of splitTextForStreaming(outputText)) {
+  // Send text in chunks for proper streaming experience
+  const chunkSize = 20; // Small chunks for better streaming feel
+  for (let i = 0; i < outputText.length; i += chunkSize) {
+    const chunk = outputText.slice(i, i + chunkSize);
     writeSse(res, {
       type: "response.output_text.delta",
       response_id: responseId,
       output_index: 0,
       item_id: messageId,
       content_index: 0,
-      delta,
+      delta: { type: "text", text: chunk },
     });
   }
 
@@ -940,7 +964,7 @@ async function proxyResponses(req, res, payload, apiKey) {
   }
 
   const converted = toResponsesObjectFromChat(chatJson, mappedModel);
-  if (upstreamPayload.stream) {
+  if (upstreamPayload.stream && RESPONSES_STREAM_FALLBACK_MODE === "sse") {
     sendResponsesSseFromObject(res, converted, {
       "x-glm-codex-fallback": "responses->chat-stream-simulated",
       "x-glm-codex-requested-model": String(requestedModel || ""),
@@ -950,7 +974,10 @@ async function proxyResponses(req, res, payload, apiKey) {
     return;
   }
   sendJson(res, 200, converted, {
-    "x-glm-codex-fallback": "responses->chat",
+    "x-glm-codex-fallback":
+      upstreamPayload.stream && RESPONSES_STREAM_FALLBACK_MODE !== "sse"
+        ? "responses->chat-nonstream-fallback"
+        : "responses->chat",
     "x-glm-codex-requested-model": String(requestedModel || ""),
     "x-glm-codex-mapped-model": mappedModel,
     "x-glm-codex-upstream": chatResult.baseUrl,
@@ -958,20 +985,75 @@ async function proxyResponses(req, res, payload, apiKey) {
 }
 
 function handleModels(req, res) {
-  const entries = new Set([
-    "glm-5",
-    "glm-4.7",
-    "glm-4.7-flash",
-    "glm-4.7-flashx",
-    ...Object.keys(MODEL_MAP),
-  ]);
+  // Define model metadata for Codex CLI compatibility
+  const modelMetadata = {
+    "gpt-5.3-codex": {
+      id: "gpt-5.3-codex",
+      object: "model",
+      created: 1677610602,
+      owned_by: "openai",
+      type: "chat",
+      max_tokens: 128000,
+      context_length: 128000,
+    },
+    "gpt-5.2-codex": {
+      id: "gpt-5.2-codex",
+      object: "model",
+      created: 1677610602,
+      owned_by: "openai",
+      type: "chat",
+      max_tokens: 128000,
+      context_length: 128000,
+    },
+    "gpt-5-codex": {
+      id: "gpt-5-codex",
+      object: "model",
+      created: 1677610602,
+      owned_by: "openai",
+      type: "chat",
+      max_tokens: 128000,
+      context_length: 128000,
+    },
+    "gpt-5-mini": {
+      id: "gpt-5-mini",
+      object: "model",
+      created: 1677610602,
+      owned_by: "openai",
+      type: "chat",
+      max_tokens: 128000,
+      context_length: 128000,
+    },
+    "codex-mini-latest": {
+      id: "codex-mini-latest",
+      object: "model",
+      created: 1677610602,
+      owned_by: "openai",
+      type: "chat",
+      max_tokens: 128000,
+      context_length: 128000,
+    },
+    // GLM models for direct usage
+    "glm-4.7": {
+      id: "glm-4.7",
+      object: "model",
+      created: 1677610602,
+      owned_by: "zai",
+      type: "chat",
+      max_tokens: 128000,
+      context_length: 128000,
+    },
+    "glm-4.7-flash": {
+      id: "glm-4.7-flash",
+      object: "model",
+      created: 1677610602,
+      owned_by: "zai",
+      type: "chat",
+      max_tokens: 128000,
+      context_length: 128000,
+    },
+  };
 
-  const models = Array.from(entries).map((id) => ({
-    id,
-    object: "model",
-    created: 0,
-    owned_by: "glm-codex-gateway",
-  }));
+  const models = Object.values(modelMetadata);
 
   sendJson(res, 200, { object: "list", data: models });
 }
@@ -986,6 +1068,7 @@ function handleHealth(res) {
     zaiCodingBaseUrl: ZAI_CODING_BASE_URL,
     zaiEndpointMode: ZAI_ENDPOINT_MODE,
     activeZaiBaseUrl: ACTIVE_ZAI_BASE_URL,
+    responsesStreamFallbackMode: RESPONSES_STREAM_FALLBACK_MODE,
     hasZaiApiKey: Boolean(ZAI_API_KEY),
     modelDefault: MODEL_DEFAULT,
   });
@@ -1074,6 +1157,7 @@ server.listen(PORT, HOST, () => {
     zaiCodingBaseUrl: ZAI_CODING_BASE_URL,
     zaiEndpointMode: ZAI_ENDPOINT_MODE,
     activeZaiBaseUrl: ACTIVE_ZAI_BASE_URL,
+    responsesStreamFallbackMode: RESPONSES_STREAM_FALLBACK_MODE,
     modelDefault: MODEL_DEFAULT,
     hasZaiApiKey: Boolean(ZAI_API_KEY),
   });
