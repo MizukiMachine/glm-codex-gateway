@@ -171,6 +171,35 @@ function buildEndpointCandidates() {
   return out;
 }
 
+// Build endpoint candidates with preference for coding endpoint when responses failed
+function buildEndpointCandidatesForChatFallback() {
+  const unique = new Set();
+  const out = [];
+  const add = (value) => {
+    const normalized = String(value || "").trim().replace(/\/+$/, "");
+    if (!normalized || unique.has(normalized)) {
+      return;
+    }
+    unique.add(normalized);
+    out.push(normalized);
+  };
+
+  if (ZAI_ENDPOINT_MODE === "base-only") {
+    add(ZAI_BASE_URL);
+    return out;
+  }
+  if (ZAI_ENDPOINT_MODE === "coding-only") {
+    add(ZAI_CODING_BASE_URL);
+    return out;
+  }
+
+  // For chat fallback after /responses failure, prefer coding endpoint first
+  add(ZAI_CODING_BASE_URL);
+  add(ZAI_BASE_URL);
+  add(ACTIVE_ZAI_BASE_URL);
+  return out;
+}
+
 function shouldTryNextEndpoint(status, failText) {
   if (ZAI_ENDPOINT_MODE !== "auto") {
     return false;
@@ -188,8 +217,8 @@ function shouldTryNextEndpoint(status, failText) {
 }
 
 async function fetchWithEndpointFailover(params) {
-  const { req, apiKey, path, payload } = params;
-  const candidates = buildEndpointCandidates();
+  const { req, apiKey, path, payload, endpointCandidates } = params;
+  const candidates = endpointCandidates || buildEndpointCandidates();
   let lastFailure = null;
 
   for (let i = 0; i < candidates.length; i += 1) {
@@ -908,12 +937,36 @@ async function proxyResponses(req, res, payload, apiKey) {
 
   const chatPayload = toChatCompletionsPayloadFromResponses(upstreamPayload);
   chatPayload.stream = false;
-  const chatResult = await fetchWithEndpointFailover({
-    req,
-    apiKey,
-    path: "/chat/completions",
-    payload: chatPayload,
-  });
+
+  let chatResult;
+  try {
+    chatResult = await fetchWithEndpointFailover({
+      req,
+      apiKey,
+      path: "/chat/completions",
+      payload: chatPayload,
+      endpointCandidates: buildEndpointCandidatesForChatFallback(),
+    });
+  } catch (fetchError) {
+    logInfo("fallback chat.completions fetch error", {
+      message: fetchError instanceof Error ? fetchError.message : String(fetchError),
+    });
+    sendJson(
+      res,
+      502,
+      {
+        error: {
+          message: "Fallback to /chat/completions failed: " + (fetchError instanceof Error ? fetchError.message : String(fetchError)),
+          type: "bad_gateway",
+        },
+      },
+      {
+        "x-glm-codex-fallback": "responses->chat-fetch-error",
+      },
+    );
+    return;
+  }
+
   if (!chatResult.ok) {
     const chatText = chatResult.text;
     const chatUpstreamRequestId = chatResult.upstreamRequestId;
@@ -942,11 +995,33 @@ async function proxyResponses(req, res, payload, apiKey) {
     return;
   }
 
-  const chatText = await chatResult.upstream.text();
+  let chatText;
+  try {
+    chatText = await chatResult.upstream.text();
+  } catch (readError) {
+    logInfo("fallback chat.completions read error", {
+      message: readError instanceof Error ? readError.message : String(readError),
+    });
+    sendJson(
+      res,
+      502,
+      {
+        error: {
+          message: "Failed to read /chat/completions response: " + (readError instanceof Error ? readError.message : String(readError)),
+          type: "bad_gateway",
+        },
+      },
+      {
+        "x-glm-codex-fallback": "responses->chat-read-error",
+      },
+    );
+    return;
+  }
+
   let chatJson;
   try {
     chatJson = JSON.parse(chatText);
-  } catch {
+  } catch (parseError) {
     sendJson(
       res,
       502,
