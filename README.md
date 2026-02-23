@@ -14,7 +14,7 @@ export ZAI_API_KEY="<your-zai-key>"
 # export ZAI_BASE_URL="https://api.z.ai/api/paas/v4"
 # export ZAI_CODING_BASE_URL="https://api.z.ai/api/coding/paas/v4"
 # export GLM_CODEX_GATEWAY_PORT="8787"
-# export GLM_DEFAULT_MODEL="glm-4.7"
+# export GLM_DEFAULT_MODEL="glm-5"
 # export GLM_RESPONSES_FALLBACK_MODE="auto"  # auto|always|never
 # export GLM_ZAI_ENDPOINT_MODE="auto"         # auto|base-only|coding-only
 
@@ -39,7 +39,7 @@ source ./use-codex-with-glm.sh
 
 - `OPENAI_BASE_URL=http://127.0.0.1:8787/v1`
 - `OPENAI_API_KEY=dummy-openai-key-for-proxy` (未設定時)
-- `CODEX_MODEL=glm-4.7` (未設定時)
+- `CODEX_MODEL=glm-5` (未設定時)
 
 ## 3. 使い方 / Usage
 
@@ -50,7 +50,7 @@ Run Codex CLI as usual from terminal/VS Code terminal.
 ```bash
 codex
 # or
-codex exec "summarize this repository" --model glm-4.7
+codex exec "summarize this repository" --model glm-5
 ```
 
 `gpt-5.3-codex`などのOpenAI系モデル指定は、ゲートウェイ内部でGLMにマップされます。

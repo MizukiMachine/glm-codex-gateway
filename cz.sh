@@ -27,7 +27,7 @@ fi
 
 export OPENAI_BASE_URL="http://${GATEWAY_HOST}:${GATEWAY_PORT}/v1"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-dummy-openai-key-for-proxy}"
-export CODEX_MODEL="${CODEX_MODEL:-glm-4.7}"
+export CODEX_MODEL="${CODEX_MODEL:-glm-5}"
 
 if ! curl -fsS "${HEALTH_URL}" >/dev/null 2>&1; then
   nohup node "${GATEWAY_DIR}/glm-codex-gateway.mjs" >"${LOG_FILE}" 2>&1 &

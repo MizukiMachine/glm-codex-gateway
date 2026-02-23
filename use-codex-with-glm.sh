@@ -13,7 +13,7 @@ export OPENAI_BASE_URL="http://${GLM_CODEX_GATEWAY_HOST}:${GLM_CODEX_GATEWAY_POR
 export OPENAI_API_KEY="${OPENAI_API_KEY:-dummy-openai-key-for-proxy}"
 
 # Optional default model hint in your shell profile
-export CODEX_MODEL="${CODEX_MODEL:-glm-4.7}"
+export CODEX_MODEL="${CODEX_MODEL:-glm-5}"
 
 echo "[glm-codex-gateway] OPENAI_BASE_URL=$OPENAI_BASE_URL"
 echo "[glm-codex-gateway] OPENAI_API_KEY is set (${#OPENAI_API_KEY} chars)"
