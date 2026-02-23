@@ -591,15 +591,21 @@ function convertResponsesToolsToChatTools(responsesTools) {
   }
   return responsesTools
     .map((tool) => {
-      if (tool.type === "function" && tool.function) {
-        return {
-          type: "function",
-          function: {
-            name: tool.function.name,
-            description: tool.function.description || "",
-            parameters: tool.function.parameters || { type: "object", properties: {} },
-          },
-        };
+      // Support both formats:
+      // 1. OpenAI format: {type:"function", function:{name:"...", parameters:{...}}}
+      // 2. Codex CLI format: {type:"function", name:"...", parameters:{...}}
+      if (tool.type === "function") {
+        const funcData = tool.function || tool;
+        if (funcData && funcData.name) {
+          return {
+            type: "function",
+            function: {
+              name: funcData.name,
+              description: funcData.description || "",
+              parameters: funcData.parameters || { type: "object", properties: {} },
+            },
+          };
+        }
       }
       return null;
     })
@@ -1146,6 +1152,16 @@ async function proxyResponses(req, res, payload, apiKey) {
   const requestedModel = payload?.model;
   const mappedModel = mapModel(requestedModel);
 
+  // Debug: log raw tools from request
+  logDebug("proxyResponses: raw payload tools", {
+    hasTools: Array.isArray(payload?.tools),
+    toolsCount: Array.isArray(payload?.tools) ? payload.tools.length : 0,
+    toolTypes: Array.isArray(payload?.tools) ? payload.tools.slice(0, 3).map((t) => t?.type) : [],
+    firstToolPreview: Array.isArray(payload?.tools) && payload.tools.length > 0
+      ? JSON.stringify(payload.tools[0]).slice(0, 300)
+      : null,
+  });
+
   // Check if tools are present and agent loop is enabled
   const hasTools = Array.isArray(payload?.tools) && payload.tools.length > 0;
   const agentLoopEnabled = process.env.GLM_AGENT_LOOP_ENABLED !== "false";
@@ -1544,6 +1560,7 @@ class ToolExecutor {
       case "shell":
       case "run_command":
       case "runCommand":
+      case "exec_command":
         return this.exec(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -1909,8 +1926,18 @@ function buildInitialMessages(payload) {
 }
 
 function extractToolDefinitions(payload) {
-  if (!Array.isArray(payload?.tools)) return [];
-  return convertResponsesToolsToChatTools(payload.tools);
+  if (!Array.isArray(payload?.tools)) {
+    logDebug("extractToolDefinitions: no tools array", { toolsType: typeof payload?.tools });
+    return [];
+  }
+  logDebug("extractToolDefinitions: raw tools", {
+    toolsCount: payload.tools.length,
+    toolTypes: payload.tools.map((t) => t?.type).slice(0, 10),
+    firstTool: JSON.stringify(payload.tools[0]).slice(0, 200),
+  });
+  const converted = convertResponsesToolsToChatTools(payload.tools);
+  logDebug("extractToolDefinitions: converted", { convertedCount: converted.length });
+  return converted;
 }
 
 function parseAllowedPaths(envValue) {
