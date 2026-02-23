@@ -7,7 +7,7 @@ This is a local OpenAI-compatible proxy that lets you run Codex CLI against Z.AI
 ## 1. 起動 / Start
 
 ```bash
-cd /home/mizuki/glm-codex-gateway
+cd /path/to/glm-codex-gateway
 
 export ZAI_API_KEY="<your-zai-key>"
 # optional:

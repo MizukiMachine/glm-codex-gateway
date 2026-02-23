@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GATEWAY_DIR="/home/mizuki/glm-codex-gateway"
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GATEWAY_DIR="${GLM_CODEX_GATEWAY_DIR:-$SCRIPT_DIR}"
 GATEWAY_HOST="${GLM_CODEX_GATEWAY_HOST:-127.0.0.1}"
 GATEWAY_PORT="${GLM_CODEX_GATEWAY_PORT:-8787}"
 HEALTH_URL="http://${GATEWAY_HOST}:${GATEWAY_PORT}/healthz"
