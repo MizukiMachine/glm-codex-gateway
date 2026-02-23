@@ -25,7 +25,7 @@ const RESPONSES_FALLBACK_MODE = (process.env.GLM_RESPONSES_FALLBACK_MODE || "aut
 const RESPONSES_STREAM_FALLBACK_MODE = (process.env.GLM_RESPONSES_STREAM_FALLBACK_MODE || "sse")
   .trim()
   .toLowerCase();
-let ACTIVE_ZAI_BASE_URL = ZAI_BASE_URL;
+let ACTIVE_ZAI_BASE_URL = ZAI_CODING_BASE_URL;
 const DEFAULT_RESPONSES_USAGE = Object.freeze({
   input_tokens: 0,
   output_tokens: 0,

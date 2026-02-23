@@ -12,7 +12,7 @@ cd /home/mizuki/glm-codex-gateway
 export ZAI_API_KEY="<your-zai-key>"
 # optional:
 # export ZAI_BASE_URL="https://api.z.ai/api/paas/v4"
-# export ZAI_CODING_BASE_URL="https://api.z.ai/api/coding/paas/v4"
+# export ZAI_CODING_BASE_URL="https://api.z.ai/api/coding/paas/v4" (default preferred)
 # export GLM_CODEX_GATEWAY_PORT="8787"
 # export GLM_DEFAULT_MODEL="glm-5"
 # export GLM_RESPONSES_FALLBACK_MODE="auto"  # auto|always|never
@@ -93,6 +93,6 @@ export GLM_MODEL_MAP_JSON='{"gpt-5.3-codex":"glm-4.7","gpt-5-mini":"glm-4.7-flas
 2. モデル不一致: `GLM_MODEL_MAP_JSON` を調整してください。
 3. 接続できない: `OPENAI_BASE_URL` が `http://127.0.0.1:8787/v1` になっているか確認してください。
 4. `zai_1113` / `Insufficient balance`:
-   - まず `GLM_ZAI_ENDPOINT_MODE=auto` のまま試してください（`/api/paas/v4` と `/api/coding/paas/v4` を自動切替）。
+   - デフォルトは `/api/coding/paas/v4` を使用します（自動切替で `/api/paas/v4` も試行）。
    - 特定ルートに固定したい場合は `base-only` または `coding-only` を使ってください。
    - 既存の別系統エンドポイント（例: Anthropic互換）で使えていても、PaaS/Coding枠は別管理の可能性があります。
