@@ -4,6 +4,10 @@ Z.AIのGLMモデルを、OpenAI互換のローカルプロキシ経由で`Codex 
 
 This is a local OpenAI-compatible proxy that lets you run Codex CLI against Z.AI GLM models.
 
+Codex CLIはOSS（Apache-2.0）であり、`OPENAI_BASE_URL`によるカスタムエンドポイントは公式サポートされています。本プロジェクトはOpenAIの利用規約に違反しません。
+
+Codex CLI is open-source (Apache-2.0) and officially supports custom endpoints via `OPENAI_BASE_URL`. This project does not violate OpenAI's Terms of Use.
+
 ## 1. 起動 / Start
 
 ```bash
@@ -96,3 +100,9 @@ export GLM_MODEL_MAP_JSON='{"gpt-5.3-codex":"glm-4.7","gpt-5-mini":"glm-4.7-flas
    - デフォルトは `/api/coding/paas/v4`（無料枠）のみを使用します。
    - 有料枠の `/api/paas/v4` も試すには `GLM_ZAI_ENDPOINT_MODE=auto` を設定してください。
    - 既存の別系統エンドポイント（例: Anthropic互換）で使えていても、PaaS/Coding枠は別管理の可能性があります。
+
+## ライセンス / License
+
+MIT License
+
+
